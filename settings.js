@@ -1,20 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const fields = ['geminiKey', 'notionToken', 'notionDbId', 'notionParentPageId'];
+  const fields = ['geminiKey', 'notionToken', 'notionClientId', 'notionClientSecret', 'notionRedirectUri', 'notionDbId', 'notionParentPageId'];
   const saveBtn = document.getElementById('saveBtn');
+  const authBtn = document.getElementById('authBtn');
+  const exchangeBtn = document.getElementById('exchangeBtn');
   const saveStatus = document.getElementById('saveStatus');
+  const tokenStatus = document.getElementById('tokenStatus');
   const NOTION_VERSION = "2025-09-03";
 
   // Load existing keys
   chrome.storage.local.get(fields, (data) => {
     fields.forEach(f => {
-      if (data[f]) document.getElementById(f).value = data[f];
+      const el = document.getElementById(f);
+      if (el && data[f]) el.value = data[f];
     });
+    if (data.notionToken) {
+      tokenStatus.textContent = 'Connected (OAuth Token Stored)';
+      tokenStatus.style.color = '#48bb78';
+    }
   });
 
   saveBtn.addEventListener('click', () => {
     const vals = {};
     fields.forEach(f => {
-      vals[f] = document.getElementById(f).value.trim();
+      const el = document.getElementById(f);
+      if (el) vals[f] = el.value.trim();
     });
 
     chrome.storage.local.set(vals, () => {
@@ -23,79 +32,111 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Simulation Trigger
-  document.getElementById('runSimulation').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'runSimulation' }, (res) => {
-      alert('Simulation started. Check Background Console for logs.');
-    });
+  // OAuth Step 1: Redirect to Authorize
+  authBtn.addEventListener('click', () => {
+    const clientId = document.getElementById('notionClientId').value;
+    const redirectUri = document.getElementById('notionRedirectUri').value;
+    const authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&response_type=code&owner=user&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.open(authUrl, '_blank');
   });
 
-  // Test Gemini
-  document.getElementById('testGemini').addEventListener('click', async () => {
-    const key = document.getElementById('geminiKey').value;
-    const btn = document.getElementById('testGemini');
-    btn.textContent = 'Testing...';
-    
+  // OAuth Step 2: Exchange Code for Access Token
+  exchangeBtn.addEventListener('click', async () => {
+    const clientId = document.getElementById('notionClientId').value;
+    const clientSecret = document.getElementById('notionClientSecret').value;
+    const redirectUri = document.getElementById('notionRedirectUri').value;
+    const code = document.getElementById('notionAuthCode').value.trim();
+
+    if (!clientId || !clientSecret || !code) {
+      alert('Missing Client ID, Secret, or Auth Code.');
+      return;
+    }
+
+    exchangeBtn.textContent = 'Exchanging...';
+
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+      // Per Notion Docs, we must use Basic Auth for the token endpoint
+      const basicAuth = btoa(`${clientId}:${clientSecret}`);
+      
+      const res = await fetch('https://api.notion.com/v1/oauth/token', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          contents: [{ parts: [{ text: "hi" }] }],
-          generationConfig: { 
-            response_mime_type: "application/json",
-            thinking_config: { include_thoughts: false, thinking_budget: 0 }
-          }
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: redirectUri
         })
       });
+
+      const data = await res.json();
+
       if (res.ok) {
-        btn.textContent = 'Connection OK ✓';
-        btn.style.backgroundColor = '#48bb78';
+        const token = data.access_token;
+        chrome.storage.local.set({ notionToken: token }, () => {
+          tokenStatus.textContent = 'Connected (OAuth Token Stored)';
+          tokenStatus.style.color = '#48bb78';
+          exchangeBtn.textContent = 'Token Saved ✓';
+          console.log('[OAuth Success] Access Token successfully stored.');
+        });
       } else {
-        throw new Error('Failed');
+        throw new Error(data.error_description || data.error || 'Token Exchange Failed');
       }
     } catch (e) {
-      btn.textContent = 'Error ✗';
-      btn.style.backgroundColor = '#f56565';
+      console.error('[OAuth Error]', e);
+      alert(`Error: ${e.message}`);
+      exchangeBtn.textContent = 'Retry Exchange';
     }
-    setTimeout(() => { btn.textContent = 'Test Gemini'; btn.style.backgroundColor = ''; }, 3000);
   });
 
-  // Test Notion
+  // Test API Connections
   document.getElementById('testNotion').addEventListener('click', async () => {
-    const token = document.getElementById('notionToken').value;
+    const { notionToken } = await chrome.storage.local.get("notionToken");
     const dbId = document.getElementById('notionDbId').value;
     const pageId = document.getElementById('notionParentPageId').value;
     const btn = document.getElementById('testNotion');
-    btn.textContent = 'Testing...';
-    
+
+    if (!notionToken) {
+      alert('No access token found. Complete Step 1 and 2.');
+      return;
+    }
+
+    btn.textContent = 'Testing Token...';
     try {
-      // Test DB
       const dbRes = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': NOTION_VERSION }
+        headers: { 
+          'Authorization': `Bearer ${notionToken}`, 
+          'Notion-Version': NOTION_VERSION 
+        }
       });
       
-      // Test Page
       const pgRes = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': NOTION_VERSION }
+        headers: { 
+          'Authorization': `Bearer ${notionToken}`, 
+          'Notion-Version': NOTION_VERSION 
+        }
       });
 
       if (dbRes.ok && pgRes.ok) {
-        btn.textContent = 'All Connections OK ✓';
+        btn.textContent = 'All Access OK ✓';
         btn.style.backgroundColor = '#48bb78';
       } else {
-        throw new Error(`DB: ${dbRes.status}, Page: ${pgRes.status}`);
+        throw new Error(`DB Status: ${dbRes.status}, Page Status: ${pgRes.status}`);
       }
     } catch (e) {
       console.error(e);
-      btn.textContent = 'Error ✗';
+      btn.textContent = 'Access Error ✗';
       btn.style.backgroundColor = '#f56565';
     }
-    setTimeout(() => { btn.textContent = 'Test Notion Connections'; btn.style.backgroundColor = ''; }, 3000);
+  });
+
+  // Simulation Trigger
+  document.getElementById('runSimulation').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'runSimulation' });
+    alert('Simulation triggered.');
   });
 });

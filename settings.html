@@ -9,26 +9,56 @@
   <div class="settings-container">
     <h1>Architecture 2026 Config</h1>
     
-    <div class="field">
-      <label>Google Gemini API Key</label>
-      <input type="password" id="geminiKey" placeholder="Enter Gemini API Key">
-      <button id="testGemini" class="test-btn">Test Gemini</button>
+    <div class="section">
+      <h2>1. AI Configuration</h2>
+      <div class="field">
+        <label>Google Gemini API Key</label>
+        <input type="password" id="geminiKey" placeholder="Enter Gemini API Key">
+        <button id="testGemini" class="test-btn">Test Gemini</button>
+      </div>
     </div>
 
-    <div class="field">
-      <label>Notion API Token</label>
-      <input type="password" id="notionToken" placeholder="secret_...">
+    <div class="section">
+      <h2>2. Notion OAuth 2.0 Setup</h2>
+      <div class="field">
+        <label>Client ID</label>
+        <input type="text" id="notionClientId" value="31dd872b-594c-81f9-8f50-0037ca26728b" readonly>
+      </div>
+      <div class="field">
+        <label>Client Secret</label>
+        <input type="password" id="notionClientSecret" placeholder="Enter your Notion Client Secret">
+      </div>
+      <div class="field">
+        <label>Redirect URI</label>
+        <input type="text" id="notionRedirectUri" value="https://exply." readonly>
+      </div>
+      
+      <div class="auth-actions">
+        <button id="authBtn" class="primary">1. Login & Authorize with Notion</button>
+      </div>
+
+      <div class="field" style="margin-top: 15px;">
+        <label>Step 2: Paste Authorization Code</label>
+        <input type="text" id="notionAuthCode" placeholder="Copy the 'code=' value from the URL here">
+        <button id="exchangeBtn" class="test-btn">2. Exchange Code for Access Token</button>
+      </div>
+
+      <div class="status-box">
+        Connection Status: <span id="tokenStatus">Not Connected</span>
+      </div>
     </div>
 
-    <div class="field">
-      <label>Notion Database ID (Design System 2026)</label>
-      <input type="text" id="notionDbId" placeholder="32-char Database ID">
-    </div>
-
-    <div class="field">
-      <label>Notion Parent Page ID (Generated Pages)</label>
-      <input type="text" id="notionParentPageId" placeholder="32-char Page ID">
-      <button id="testNotion" class="test-btn">Test Notion Connections</button>
+    <div class="section">
+      <h2>3. Workspace Configuration</h2>
+      <div class="field">
+        <label>Notion Database ID</label>
+        <input type="text" id="notionDbId" placeholder="32-char Database ID">
+      </div>
+      <div class="field">
+        <label>Notion Parent Page ID (Folder)</label>
+        <input type="text" id="notionParentPageId" placeholder="32-char Page ID">
+        <button id="testNotion" class="test-btn">Test API Access</button>
+      </div>
     </div>
 
     <div class="footer-actions">
@@ -37,13 +67,16 @@
     </div>
 
     <section class="help">
-      <h3>Setup Guide</h3>
+      <h3>How to Authorize</h3>
       <ol>
-        <li>API Version: <code>2025-09-03</code></li>
-        <li>Database Properties: Title, URL, Markdown, Summary, Created.</li>
-        <li>Parent Page: A normal page to hold generated entries.</li>
-        <li>Simulation: <button id="runSimulation" class="test-btn">Run Test Simulation</button></li>
+        <li>Ensure your Client Secret is entered above.</li>
+        <li>Click <b>Authorize</b>. A new tab will open.</li>
+        <li>Log in and select your workspace/pages.</li>
+        <li>After you are redirected to "https://exply.", look at the address bar.</li>
+        <li>Copy everything after <code>code=</code> and paste it into the field above.</li>
+        <li>Click <b>Exchange Code</b> to save your permanent access token.</li>
       </ol>
+      <button id="runSimulation" class="test-btn">Run Test Simulation</button>
     </section>
   </div>
   <script src="settings.js"></script>
