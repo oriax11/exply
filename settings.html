@@ -2,12 +2,12 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Settings - AI Note Capture</title>
+  <title>Settings - Design System 2026</title>
   <link rel="stylesheet" href="settings.css">
 </head>
 <body>
   <div class="settings-container">
-    <h1>Configuration</h1>
+    <h1>Architecture 2026 Config</h1>
     
     <div class="field">
       <label>Google Gemini API Key</label>
@@ -21,14 +21,14 @@
     </div>
 
     <div class="field">
-      <label>Notion Parent Page ID</label>
-      <input type="text" id="notionPageId" placeholder="32-char ID from page URL">
-      <button id="testNotion" class="test-btn">Test Notion</button>
+      <label>Notion Database ID (Design System 2026)</label>
+      <input type="text" id="notionDbId" placeholder="32-char Database ID">
     </div>
 
     <div class="field">
-      <label>Ollama URL (Optional)</label>
-      <input type="text" id="ollamaUrl" placeholder="http://localhost:11434">
+      <label>Notion Parent Page ID (Generated Pages)</label>
+      <input type="text" id="notionParentPageId" placeholder="32-char Page ID">
+      <button id="testNotion" class="test-btn">Test Notion Connections</button>
     </div>
 
     <div class="footer-actions">
@@ -39,9 +39,10 @@
     <section class="help">
       <h3>Setup Guide</h3>
       <ol>
-        <li>Get Gemini Key: <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></li>
-        <li>Create Notion DB & Integration: <a href="https://developers.notion.com" target="_blank">developers.notion.com</a></li>
-        <li>Share Database with your Integration.</li>
+        <li>API Version: <code>2025-09-03</code></li>
+        <li>Database Properties: Title, URL, Markdown, Summary, Created.</li>
+        <li>Parent Page: A normal page to hold generated entries.</li>
+        <li>Simulation: <button id="runSimulation" class="test-btn">Run Test Simulation</button></li>
       </ol>
     </section>
   </div>

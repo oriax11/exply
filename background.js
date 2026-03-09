@@ -1,4 +1,4 @@
-// Notion AI Note Capture - Background Service Worker
+// Notion AI Note Capture - Background Service Worker (Architecture: Design System 2026)
 
 // 1. Initialize Context Menu
 chrome.runtime.onInstalled.addListener(() => {
@@ -10,14 +10,12 @@ chrome.runtime.onInstalled.addListener(() => {
     });
   });
 
-  // Initialize storage if empty
   chrome.storage.local.get(["queue", "recent"], (data) => {
     if (!data.queue) chrome.storage.local.set({ queue: [] });
     if (!data.recent) chrome.storage.local.set({ recent: [] });
   });
 });
 
-// 2. Handle Context Menu Click
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "captureAndExplain") {
     captureFlow(tab.id);
@@ -26,25 +24,14 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 async function captureFlow(tabId) {
   try {
-    // Request full context from content script
-    const pageData = await chrome.tabs.sendMessage(tabId, {
-      action: "getCaptureContext",
-    });
+    const pageData = await chrome.tabs.sendMessage(tabId, { action: "getCaptureContext" });
     if (!pageData || !pageData.word) return;
 
-    // Add to queue
-    const capture = {
-      ...pageData,
-      timestamp: Date.now(),
-      status: "pending",
-    };
-
+    const capture = { ...pageData, timestamp: Date.now(), status: "pending" };
     await addToQueue(capture);
-
-    // Attempt processing immediately
     processCapture(capture);
   } catch (err) {
-    console.error("Capture failed", err);
+    console.error("[Capture Error]:", err);
   }
 }
 
@@ -55,243 +42,204 @@ async function addToQueue(item) {
   await chrome.storage.local.set({ queue });
 }
 
-// 3. AI Enrichment (Gemini)
+// 2. AI Enrichment (Gemini 2.5 Flash)
 async function callGemini(word, context) {
   const { geminiKey } = await chrome.storage.local.get("geminiKey");
   if (!geminiKey) throw new Error("Missing Gemini Key");
 
   const prompt = `
-    Explain the following word/concept found in this context:
+    Explain the following word/concept for a Design System Knowledge Base:
     Word: "${word}"
     Context: "${context}"
     
-    Provide a learning-focused explanation in JSON format with these exact keys:
+    Provide a professional explanation in JSON format with:
     - definition: concise definition
-    - why_it_matters: significance of this concept
-    - example: a practical example
-    - related_concepts: array of 3 related terms
-    - difficulty: number 1-5
-    - study_tip: one short tip for remembering this
+    - why_it_matters: significance
+    - example: practical example
+    - related_concepts: array of 3 terms
+    - difficulty: 1-5
+    - study_tip: short tip
     
-    Keep the total response under 300 words. JSON only.
+    JSON only.
   `;
 
-  try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": geminiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            response_mime_type: "application/json",
-            thinking_config: {
-              include_thoughts: false,
-              thinking_budget: -1, // Dynamic thinking for better reasoning
-            },
-          },
-        }),
-      }
-    );
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { response_mime_type: "application/json", thinking_config: { include_thoughts: false, thinking_budget: -1 } },
+    }),
+  });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(
-        err.error?.message ||
-          `Gemini API Call Failed with status ${response.status}`
-      );
-    }
-
-    const data = await response.json();
-
-    if (data.promptFeedback?.blockReason) {
-      throw new Error(
-        `Gemini blocked the prompt: ${data.promptFeedback.blockReason}`
-      );
-    }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      throw new Error("Gemini returned no candidates.");
-    }
-
-    const candidate = data.candidates[0];
-    if (
-      candidate.finishReason !== "STOP" &&
-      candidate.finishReason !== "MAX_TOKENS"
-    ) {
-      throw new Error(`Gemini finished with reason: ${candidate.finishReason}`);
-    }
-
-    if (
-      !candidate.content ||
-      !candidate.content.parts ||
-      candidate.content.parts.length === 0
-    ) {
-      throw new Error("Invalid content structure in Gemini response.");
-    }
-
-    // Filter parts to find the text part (ignoring thoughts if they were returned)
-    const textPart = candidate.content.parts.find((p) => p.text);
-    if (!textPart) {
-      throw new Error("No text content found in Gemini response.");
-    }
-
-    let textResponse = textPart.text;
-
-    // Clean up markdown code blocks if present
-    if (textResponse.includes("```json")) {
-      textResponse = textResponse
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-    }
-
-    return JSON.parse(textResponse);
-  } catch (err) {
-    console.error("Gemini Error:", err);
-    throw err;
-  }
+  const data = await response.json();
+  const text = data.candidates[0].content.parts.find(p => p.text).text;
+  return JSON.parse(text);
 }
 
-// 4. Save to Notion
-async function saveToNotion(capture, enriched) {
-  const { notionToken, notionPageId } = await chrome.storage.local.get([
-    "notionToken",
-    "notionPageId",
-  ]);
-  if (!notionToken || !notionPageId)
-    throw new Error("Missing Notion credentials");
+// 3. Notion Integration (Architecture 2026)
 
-  const notionData = {
-    parent: { page_id: notionPageId },
+const NOTION_VERSION = "2025-09-03";
+
+async function saveToDatabase(capture, enriched) {
+  const { notionToken, notionDbId } = await chrome.storage.local.get(["notionToken", "notionDbId"]);
+  if (!notionToken || !notionDbId) throw new Error("Missing Notion credentials (DB)");
+
+  console.log(`[Notion] Saving entry: "${capture.word}" to Database ${notionDbId}`);
+
+  // Construct Markdown string from enriched data
+  const markdownContent = `
+### Definition
+${enriched.definition}
+
+### Why It Matters
+${enriched.why_it_matters}
+
+### Example
+${enriched.example}
+
+### Related Concepts
+${enriched.related_concepts.join(", ")}
+
+### Study Tip
+${enriched.study_tip}
+  `.trim();
+
+  const payload = {
+    parent: { database_id: notionDbId },
     properties: {
-      title: [
-        {
-          text: {
-            content: capture.word,
-          },
-        },
-      ],
+      "Title": { title: [{ text: { content: capture.word } }] },
+      "URL": { url: capture.url },
+      "Summary": { rich_text: [{ text: { content: enriched.definition.substring(0, 2000) } }] },
+      "Markdown": { rich_text: [{ text: { content: markdownContent.substring(0, 2000) } }] },
+      "Created": { date: { start: new Date().toISOString() } }
+    }
+  };
+
+  console.log("[Notion API Call] POST /v1/pages (Database Entry)");
+  const res = await fetch("https://api.notion.com/v1/pages", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${notionToken}`,
+      "Content-Type": "application/json",
+      "Notion-Version": NOTION_VERSION
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("[Notion Error]", data);
+    throw new Error(data.message || "Failed to save to database");
+  }
+
+  console.log(`[Notion Success] Database Row Created: ${data.id}`);
+  console.log(`[Markdown Preview] Length: ${markdownContent.length} chars\n${markdownContent.substring(0, 100)}...`);
+  
+  return data.id;
+}
+
+async function fetchDatabaseRow(rowId) {
+  const { notionToken } = await chrome.storage.local.get("notionToken");
+  console.log(`[Notion API Call] GET /v1/pages/${rowId}`);
+  
+  const res = await fetch(`https://api.notion.com/v1/pages/${rowId}`, {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${notionToken}`,
+      "Notion-Version": NOTION_VERSION
+    }
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error("Failed to fetch database row");
+  return data;
+}
+
+async function generatePageFromDatabase(rowId) {
+  const { notionToken, notionParentPageId } = await chrome.storage.local.get(["notionToken", "notionParentPageId"]);
+  if (!notionToken || !notionParentPageId) throw new Error("Missing Parent Page ID for generation");
+
+  const row = await fetchDatabaseRow(rowId);
+  const title = row.properties.Title.title[0].plain_text;
+  const markdown = row.properties.Markdown.rich_text[0].plain_text;
+
+  console.log(`[Notion] Generating standalone page for: "${title}" under folder ${notionParentPageId}`);
+
+  const payload = {
+    parent: { page_id: notionParentPageId },
+    properties: {
+      title: [{ text: { content: title } }]
     },
     children: [
       {
         object: "block",
         type: "paragraph",
         paragraph: {
-          rich_text: [
-            { text: { content: `Definition: ${enriched.definition}` } },
-          ],
-        },
-      },
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [
-            { text: { content: `Why It Matters: ${enriched.why_it_matters}` } },
-          ],
-        },
-      },
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [{ text: { content: `Example: ${enriched.example}` } }],
-        },
-      },
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [
-            {
-              text: {
-                content: `Related Concepts: ${enriched.related_concepts.join(
-                  ", "
-                )}`,
-              },
-            },
-          ],
-        },
-      },
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [{ text: { content: `Source URL: ${capture.url}` } }],
-        },
-      },
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [
-            {
-              text: {
-                content: `Original Context: ${capture.context.substring(
-                  0,
-                  2000
-                )}`,
-              },
-            },
-          ],
-        },
-      },
-    ],
+          rich_text: [{ text: { content: markdown } }]
+        }
+      }
+    ]
   };
 
-  const response = await fetch("https://api.notion.com/v1/pages", {
+  console.log("[Notion API Call] POST /v1/pages (Standalone Page)");
+  const res = await fetch("https://api.notion.com/v1/pages", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${notionToken}`,
+      "Authorization": `Bearer ${notionToken}`,
       "Content-Type": "application/json",
-      "Notion-Version": "2022-06-28",
+      "Notion-Version": NOTION_VERSION
     },
-    body: JSON.stringify(notionData),
+    body: JSON.stringify(payload)
   });
 
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.message || "Notion Save Failed");
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("[Notion Error]", data);
+    throw new Error("Failed to generate standalone page");
   }
+
+  console.log(`[Notion Success] Page Generated: ${data.id}`);
+  console.log(`[URL]: ${data.url}`);
+  
+  return { id: data.id, url: data.url };
 }
 
-// 5. Main Processing Loop
+// 4. Main Loop
 async function processCapture(capture) {
   try {
     const enriched = await callGemini(capture.word, capture.context);
-    await saveToNotion(capture, enriched);
+    
+    // Save to Database
+    const rowId = await saveToDatabase(capture, enriched);
+    
+    // Auto-generate page (Simulation requirement)
+    const page = await generatePageFromDatabase(rowId);
 
-    // Move from queue to recent
+    console.log("--- FINAL SUMMARY ---");
+    console.log(`Database row created with ID: ${rowId}`);
+    console.log(`Generated page created with ID: ${page.id} and URL: ${page.url}`);
+    console.log("----------------------");
+
     const data = await chrome.storage.local.get(["queue", "recent"]);
-    const newQueue = (data.queue || []).filter(
-      (item) => item.timestamp !== capture.timestamp
-    );
+    const newQueue = (data.queue || []).filter(item => item.timestamp !== capture.timestamp);
     const newRecent = [capture, ...(data.recent || [])].slice(0, 10);
-
     await chrome.storage.local.set({ queue: newQueue, recent: newRecent });
-
-    console.log(`Successfully captured and saved: ${capture.word}`);
   } catch (err) {
-    console.error("Process failed", err);
-    // Keep in queue but mark as failed? For now, we just leave it for manual sync
+    console.error("[Process Error]:", err.message);
   }
 }
 
-// Listener for manual sync from popup
+// 5. Simulation Trigger
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "processQueue") {
-    chrome.storage.local.get("queue", async (data) => {
-      const queue = data.queue || [];
-      for (const item of queue) {
-        await processCapture(item);
-      }
-      sendResponse({ status: "done" });
-    });
-    return true;
+  if (request.action === "runSimulation") {
+    const examples = [
+      { word: "The Future of AI in Web Development", url: "https://www.notion.so/The-Future-of-AI-in-Web-Development-31ef940a41268028bb70d53a1c1dcd5e?pvs=21", context: "AI is reshaping how we build and maintain design systems." },
+      { word: "Getting Started with Notion API", url: "https://www.notion.so/Getting-Started-with-Notion-API-31ef940a41268016a385d000f8788279?pvs=21", context: "The Notion API allows for powerful integrations with external tools." }
+    ];
+    
+    examples.forEach(ex => processCapture(ex));
+    sendResponse({ status: "Simulations started" });
   }
+  return true;
 });
