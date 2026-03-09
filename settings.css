@@ -1,0 +1,76 @@
+body {
+  font-family: -apple-system, sans-serif;
+  background: #f7fafc;
+  padding: 40px;
+  display: flex;
+  justify-content: center;
+}
+
+.settings-container {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  width: 500px;
+}
+
+h1 { color: #6b46c1; margin-top: 0; }
+
+.field {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+input {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.test-btn {
+  margin-top: 8px;
+  background: #edf2f7;
+  border: none;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  align-self: flex-start;
+}
+
+.primary {
+  background: #6b46c1;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+}
+
+#saveStatus { font-size: 0.9rem; color: #48bb78; }
+
+.help {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #edf2f7;
+  color: #718096;
+}
+
+.help h3 { font-size: 1rem; margin-bottom: 10px; }
+.help ol { padding-left: 20px; font-size: 0.85rem; }

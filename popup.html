@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Notion AI Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>AI Note Capture</h1>
+      <button id="settingsBtn" title="Settings">⚙️</button>
+    </header>
+
+    <div class="status-cards">
+      <div class="card">
+        <span class="label">Gemini</span>
+        <span id="geminiStatus" class="status-dot offline"></span>
+      </div>
+      <div class="card">
+        <span class="label">Notion</span>
+        <span id="notionStatus" class="status-dot offline"></span>
+      </div>
+      <div class="card">
+        <span class="label">Queue</span>
+        <span id="queueCount">0</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="syncBtn" class="primary">Sync Now</button>
+      <button id="clearBtn" class="secondary">Clear Queue</button>
+    </div>
+
+    <section class="recent">
+      <h2>Recent Captures</h2>
+      <ul id="recentList">
+        <li class="empty-msg">No recent captures yet.</li>
+      </ul>
+    </section>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

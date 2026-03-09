@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Settings - AI Note Capture</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="settings-container">
+    <h1>Configuration</h1>
+    
+    <div class="field">
+      <label>Google Gemini API Key</label>
+      <input type="password" id="geminiKey" placeholder="Enter Gemini API Key">
+      <button id="testGemini" class="test-btn">Test Gemini</button>
+    </div>
+
+    <div class="field">
+      <label>Notion API Token</label>
+      <input type="password" id="notionToken" placeholder="secret_...">
+    </div>
+
+    <div class="field">
+      <label>Notion Parent Page ID</label>
+      <input type="text" id="notionPageId" placeholder="32-char ID from page URL">
+      <button id="testNotion" class="test-btn">Test Notion</button>
+    </div>
+
+    <div class="field">
+      <label>Ollama URL (Optional)</label>
+      <input type="text" id="ollamaUrl" placeholder="http://localhost:11434">
+    </div>
+
+    <div class="footer-actions">
+      <span id="saveStatus"></span>
+      <button id="saveBtn" class="primary">Save Configuration</button>
+    </div>
+
+    <section class="help">
+      <h3>Setup Guide</h3>
+      <ol>
+        <li>Get Gemini Key: <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></li>
+        <li>Create Notion DB & Integration: <a href="https://developers.notion.com" target="_blank">developers.notion.com</a></li>
+        <li>Share Database with your Integration.</li>
+      </ol>
+    </section>
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html>
